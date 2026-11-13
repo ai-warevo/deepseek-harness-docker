@@ -1,0 +1,13 @@
+ARG BASE_IMAGE=docker.io/runzhliu/deepseek-harness:0.2.2-alpha.2-r1
+FROM ${BASE_IMAGE}
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+USER node
