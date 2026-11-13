@@ -1,13 +1,33 @@
+# syntax=docker/dockerfile:1.7
 ARG BASE_IMAGE=docker.io/runzhliu/deepseek-harness:0.2.2-alpha.2-r1
 FROM ${BASE_IMAGE}
+
+# Set to 1 to also install g++-15 from Debian "forky". Trixie only ships GCC 14,
+# but GitHub's ubuntu-latest CI uses GCC 15, and some coroutine sanitizer bugs
+# only show up there. forky is pinned at priority 100, so only packages named
+# explicitly (plus the newer libs they require) come from it.
+ARG WITH_GCC15=0
 
 USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    cmake \
-    git \
     ca-certificates \
+    clang \
+    cmake \
+    gdb \
+    git \
+    lld \
+    ninja-build \
     && rm -rf /var/lib/apt/lists/*
+
+RUN if [ "${WITH_GCC15}" = 1 ]; then \
+      echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list; \
+      printf 'Package: *\nPin: release n=forky\nPin-Priority: 100\n' > /etc/apt/preferences.d/forky; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends -t forky gcc-15 g++-15; \
+      rm -rf /var/lib/apt/lists/*; \
+      g++-15 --version; \
+    fi
 
 USER node

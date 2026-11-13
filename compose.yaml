@@ -8,6 +8,7 @@ services:
         IMAGE_VERSION: ${DSH_IMAGE_VERSION:-0.2.2-alpha.2-r1}
         NODE_IMAGE: ${NODE_IMAGE:-docker.io/library/node:24-trixie}
         PNPM_VERSION: ${PNPM_VERSION:-10.15.1}
+        WITH_GCC15: ${WITH_GCC15:-0}
     image: dshw:fix
     ports:
       - "127.0.0.1:${DSH_PORT:-3080}:3080"
@@ -26,7 +27,7 @@ services:
       - ${DSH_WORKSPACE:-dsh-workspace}:/workspace
     read_only: true
     tmpfs:
-      - /tmp:rw,exec,nosuid,nodev,size=512m
+      - /tmp:rw,exec,nosuid,nodev,size=2g
     # Chromium uses /dev/shm for renderer processes. This mirrors the useful
     # runtime setting from docker-antigravity without adopting its amd64-only
     # desktop base image.
