@@ -13,6 +13,8 @@ services:
     ports:
       - "127.0.0.1:${DSH_PORT:-3080}:3080"
       - "127.0.0.1:${DSH_DESKTOP_PORT:-6080}:6080"
+    # llama-server (ollama-fast-coder-4080/docker-compose.llama.yml) is reached as
+    # http://host.docker.internal:8080/v1 ; provider "llamacpp" in dsh-home/profiles/web/cordis.patch.yml
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
