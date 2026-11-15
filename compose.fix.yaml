@@ -17,5 +17,5 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     group_add:
       - "${DOCKER_GID:-0}"
-    tmpfs:
+    tmpfs: !override
       - /tmp:rw,exec,nosuid,nodev,size=2g
