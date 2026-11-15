@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1.7
+ARG BASE_IMAGE=docker.io/runzhliu/deepseek-harness:0.2.2-alpha.2-r1
+FROM ${BASE_IMAGE}
+
+# Set to 1 to also install g++-15 from Debian "forky". Trixie only ships GCC 14,
+# but GitHub's ubuntu-latest CI uses GCC 15, and some coroutine sanitizer bugs
+# only show up there. forky is pinned at priority 100, so only packages named
+# explicitly (plus the newer libs they require) come from it.
+ARG WITH_GCC15=0
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    clang \
+    cmake \
+    gdb \
+    git \
+    lld \
+    ninja-build \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN if [ "${WITH_GCC15}" = 1 ]; then \
+      echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list; \
+      printf 'Package: *\nPin: release n=forky\nPin-Priority: 100\n' > /etc/apt/preferences.d/forky; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends -t forky gcc-15 g++-15; \
+      rm -rf /var/lib/apt/lists/*; \
+      update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 150 2>/dev/null || ln -sf /usr/bin/gcc-15 /etc/alternatives/gcc 2>/dev/null; \
+      update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 150 2>/dev/null || ln -sf /usr/bin/g++-15 /etc/alternatives/g++ 2>/dev/null; \
+      ln -sf /usr/bin/gcc-15 /usr/bin/gcc; \
+      ln -sf /usr/bin/g++-15 /usr/bin/g++; \
+      g++-15 --version; \
+      echo "GCC 15 активирован"; \
+    fi
+
+RUN groupadd -g 1001 docker 2>/dev/null || true && \
+    usermod -aG docker node 2>/dev/null || true
+
+USER node
+COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker

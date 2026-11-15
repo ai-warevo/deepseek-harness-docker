@@ -1,0 +1,10 @@
+services:
+  deepseek-harness:
+    # Opt in only when running ThreadSanitizer inside the container. TSan aborts
+    # with "unexpected memory mapping" under ASLR; fixing that needs
+    # personality(ADDR_NO_RANDOMIZE) (e.g. `setarch -R ./tests/aw_tpl_tests`),
+    # which Docker's default seccomp profile blocks. The base service's non-root
+    # user, read-only root, dropped capabilities and no-new-privileges stay.
+    # Usage: docker compose -f compose.yaml -f compose.sanitizers.yaml up -d --build
+    security_opt:
+      - seccomp=unconfined
