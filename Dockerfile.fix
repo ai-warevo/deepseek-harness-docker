@@ -4,6 +4,8 @@ FROM ${BASE_IMAGE}
 
 USER root
 
+# clang-18 + libc++-18 (from trixie, side-by-side with the default clang 19): use `clang++-18 -stdlib=libc++`.
+# libc++-18 ships std::jthread/stop_token only behind -fexperimental-library (needed by aw::tpl).
 # Install GCC 15 on top of build-essential so gcc/g++ point to the fresh toolchain.
 # gcovr must match gcov version — both from forky.
 RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list && \
@@ -13,6 +15,9 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
         build-essential \
         ca-certificates \
         clang \
+        clang-18 \
+        libc++-18-dev \
+        libc++abi-18-dev \
         clang-format \
         clang-tidy \
         cmake \
@@ -26,6 +31,7 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
     ln -sf /usr/bin/gcc-15 /usr/bin/gcc && \
     ln -sf /usr/bin/g++-15 /usr/bin/g++ && \
     g++-15 --version && \
+    clang++-18 --version && \
     groupadd -g 1001 docker 2>/dev/null || true && \
     usermod -aG docker node 2>/dev/null || true
 
