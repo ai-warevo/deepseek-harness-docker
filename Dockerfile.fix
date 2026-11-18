@@ -45,11 +45,15 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
         htop \
         zoxide && \
     ln -sf /usr/bin/fdfind /usr/bin/fd && \
-    rm -rf /var/lib/apt/lists/*
+    ln -sf /usr/bin/batcat /usr/bin/bat && \
+    rm -rf /var/lib/apt/lists/* && \
+    npm install -g diff-so-fancy && \
+    dsofancy install
 
 # fzf keybindings + fd + zoxide + bat integration
-RUN mkdir -p /home/node/.config/zoxide && \
-    cat > /home/node/.zshrc <<'ZSHRC'
+# HOME=/workspace in the container
+RUN mkdir -p /workspace/.config/zoxide && \
+    cat > /workspace/.zshrc <<'ZSHRC'
 # fzf keybindings
 [ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh
 [ -f /usr/share/fzf/completion.zsh ]   && source /usr/share/fzf/completion.zsh
@@ -64,12 +68,13 @@ eval "$(zoxide init zsh)"
 alias cat='bat'
 ZSHRC
 
-RUN chown -R node:node /home/node/.zshrc
+RUN chown -R node:node /workspace/.zshrc
 
 # SSH wrapper: /home/node/.ssh is read-only in the base image.
 # This script uses a writable /tmp dir for known_hosts and identity files,
 # so git push/pull over SSH works without host key verification errors.
-RUN cat > /tmp/git-ssh-wrapper <<'WRAPPER'
+# Stored in /usr/local/bin (persistent) instead of /tmp (tmpfs).
+RUN cat > /usr/local/bin/git-ssh-wrapper <<'WRAPPER'
 #!/bin/sh
 mkdir -p /tmp/ssh-home/.ssh
 cp ~/.ssh/id_ed25519 /tmp/ssh-home/.ssh/id_ed25519 2>/dev/null
@@ -99,19 +104,16 @@ exec /usr/bin/ssh -F /dev/null \
     -o StrictHostKeyChecking=yes \
     "$@"
 WRAPPER
-RUN chmod 755 /tmp/git-ssh-wrapper
-
-# Pre-populate GitHub and GitLab SSH known_hosts
-RUN ssh-keyscan -t ed25519,rsa github.com 2>/dev/null | grep -v '^#' > /tmp/ssh-home-github-kh.tmp 2>/dev/null || true && \
-    ssh-keyscan -t ed25519,rsa gitlab.com 2>/dev/null | grep -v '^#' > /tmp/ssh-home-gitlab-kh.tmp 2>/dev/null || true
+RUN chmod 755 /usr/local/bin/git-ssh-wrapper
 
 # Git global config: use SSH wrapper for all git operations
-RUN mkdir -p /home/node/.config/git && \
-    cat > /home/node/.config/git/config <<'GITCFG'
+# HOME=/workspace in the container, so config goes to /workspace/.config/git/
+RUN mkdir -p /workspace/.config/git && \
+    cat > /workspace/.config/git/config <<'GITCFG'
 [core]
-    sshCommand = /tmp/git-ssh-wrapper
+    sshCommand = /usr/local/bin/git-ssh-wrapper
 GITCFG
-RUN chown -R node:node /home/node/.config
+RUN chown -R node:node /workspace/.config
 
 USER node
 COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
