@@ -39,7 +39,6 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
     apt-get update && \
     apt-get install -y --no-install-recommends \
         bat \
-        diff-so-fancy \
         fd-find \
         fzf \
         gh \
