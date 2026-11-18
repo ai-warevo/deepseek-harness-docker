@@ -1,6 +1,7 @@
 # compose.fix.yaml — локальные правки loktionov129
 # Merge-ится поверх compose.yaml (базовый upstream)
 # Запуск: docker compose -f compose.yaml -f compose.fix.yaml up -d
+# docker compose -f compose.yaml -f compose.fix.yaml up --build -d
 services:
   deepseek-harness:
     build:
