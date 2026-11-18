@@ -50,9 +50,9 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
     npm install -g diff-so-fancy
 
 # fzf keybindings + fd + zoxide + bat integration
-# HOME=/workspace in the container
-RUN mkdir -p /workspace/.config/zoxide && \
-    cat > /workspace/.zshrc <<'ZSHRC'
+# /workspace is mounted as volume, use /home/node for persistent config
+RUN mkdir -p /home/node/.config/zoxide && \
+    cat > /home/node/.zshrc <<'ZSHRC'
 # fzf keybindings
 [ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh
 [ -f /usr/share/fzf/completion.zsh ]   && source /usr/share/fzf/completion.zsh
@@ -67,7 +67,7 @@ eval "$(zoxide init zsh)"
 alias cat='bat'
 ZSHRC
 
-RUN chown -R node:node /workspace/.zshrc
+RUN chown -R node:node /home/node/.zshrc
 
 # SSH wrapper: /home/node/.ssh is read-only in the base image.
 # This script uses a writable /tmp dir for known_hosts and identity files,
@@ -106,14 +106,14 @@ WRAPPER
 RUN chmod 755 /usr/local/bin/git-ssh-wrapper
 
 # Git global config: use SSH wrapper for all git operations
-# HOME=/workspace in the container, so config goes to /workspace/.config/git/
-RUN mkdir -p /workspace/.config/git && \
-    cat > /workspace/.config/git/config <<'GITCFG'
+# /workspace is mounted as volume, use /home/node for persistent config
+RUN mkdir -p /home/node/.config/git && \
+    cat > /home/node/.config/git/config <<'GITCFG'
 [core]
     sshCommand = /usr/local/bin/git-ssh-wrapper
     pager = diff-so-fancy | less --tabs=4 -RF
 GITCFG
-RUN chown -R node:node /workspace/.config
+RUN chown -R node:node /home/node/.config
 
 USER node
 COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
