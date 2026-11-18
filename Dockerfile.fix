@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG BASE_IMAGE=docker.io/runzhliu/deepseek-harness:0.2.2-rc.3-r1
+ARG BASE_IMAGE=docker.io/runzhliu/deepseek-harness:0.2.2-rc.4-r1
 FROM ${BASE_IMAGE}
 
 USER root
