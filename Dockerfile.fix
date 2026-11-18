@@ -33,7 +33,39 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
     g++-15 --version && \
     clang++-18 --version && \
     groupadd -g 1001 docker 2>/dev/null || true && \
-    usermod -aG docker node 2>/dev/null || true
+    usermod -aG docker node 2>/dev/null || true && \
+    \
+    # Agent productivity tools (from trixie)
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        bat \
+        diff-so-fancy \
+        fd-find \
+        fzf \
+        gh \
+        htop \
+        zoxide && \
+    ln -sf /usr/bin/fdfind /usr/bin/fd && \
+    rm -rf /var/lib/apt/lists/*
+
+# fzf keybindings + fd + zoxide + bat integration
+RUN mkdir -p /home/node/.config/zoxide && \
+    cat > /home/node/.zshrc <<'ZSHRC'
+# fzf keybindings
+[ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh
+[ -f /usr/share/fzf/completion.zsh ]   && source /usr/share/fzf/completion.zsh
+
+# fd (fdfind)
+alias f='fdfind'
+
+# zoxide
+eval "$(zoxide init zsh)"
+
+# bat as cat
+alias cat='bat'
+ZSHRC
+
+RUN chown -R node:node /home/node/.zshrc
 
 USER node
 COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
