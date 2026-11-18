@@ -47,8 +47,7 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
     ln -sf /usr/bin/fdfind /usr/bin/fd && \
     ln -sf /usr/bin/batcat /usr/bin/bat && \
     rm -rf /var/lib/apt/lists/* && \
-    npm install -g diff-so-fancy && \
-    dsofancy install
+    npm install -g diff-so-fancy
 
 # fzf keybindings + fd + zoxide + bat integration
 # HOME=/workspace in the container
@@ -112,6 +111,7 @@ RUN mkdir -p /workspace/.config/git && \
     cat > /workspace/.config/git/config <<'GITCFG'
 [core]
     sshCommand = /usr/local/bin/git-ssh-wrapper
+    pager = diff-so-fancy | less --tabs=4 -RF
 GITCFG
 RUN chown -R node:node /workspace/.config
 
