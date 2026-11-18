@@ -14,6 +14,7 @@ services:
       DOCKER_HOST: ${DOCKER_HOST:-unix:///var/run/docker.sock}
       HOME: /home/node
       XDG_CONFIG_HOME: /home/node/.config
+      GITHUB_TOKEN: ${GITHUB_PAT_TOKEN}
     volumes:
       - ./dsh-home:/home/node/.dsh
       - /var/run/docker.sock:/var/run/docker.sock
@@ -21,3 +22,4 @@ services:
       - "${DOCKER_GID:-0}"
     tmpfs: !override
       - /tmp:rw,exec,nosuid,nodev,size=2g
+      - /home/node/.config/gh:rw,nosuid,nodev,size=64k
