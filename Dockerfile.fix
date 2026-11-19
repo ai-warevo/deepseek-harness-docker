@@ -50,7 +50,7 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
     npm install -g diff-so-fancy
 
 # fzf keybindings + fd + zoxide + bat integration
-# /workspace is mounted as volume, use /home/node for persistent config
+# /home/node/workspace is mounted as volume, use /home/node for persistent config
 RUN mkdir -p /home/node/.config/zoxide && \
     cat > /home/node/.zshrc <<'ZSHRC'
 # fzf keybindings
@@ -76,8 +76,8 @@ RUN chown -R node:node /home/node/.zshrc
 RUN cat > /usr/local/bin/git-ssh-wrapper <<'WRAPPER'
 #!/bin/sh
 mkdir -p /tmp/ssh-home/.ssh
-# SSH keys are in /workspace/.ssh (workspace is volume-mounted)
-WORKSPACE_SSH=/workspace/.ssh
+# SSH keys are in /home/node/workspace/.ssh (workspace is volume-mounted)
+WORKSPACE_SSH=/home/node/workspace/.ssh
 [ -d "$HOME/.ssh" ] && WORKSPACE_SSH="$HOME/.ssh"
 cp "$WORKSPACE_SSH/id_ed25519" /tmp/ssh-home/.ssh/id_ed25519 2>/dev/null
 cp "$WORKSPACE_SSH/id_ed25519.pub" /tmp/ssh-home/.ssh/id_ed25519.pub 2>/dev/null
@@ -109,7 +109,7 @@ WRAPPER
 RUN chmod 755 /usr/local/bin/git-ssh-wrapper
 
 # Git global config: use SSH wrapper for all git operations
-# /workspace is mounted as volume, use /home/node for persistent config
+# /home/node/workspace is mounted as volume, use /home/node for persistent config
 RUN mkdir -p /home/node/.config/git && \
     cat > /home/node/.config/git/config <<'GITCFG'
 [user]
@@ -119,16 +119,20 @@ RUN mkdir -p /home/node/.config/git && \
     sshCommand = /usr/local/bin/git-ssh-wrapper
     pager = diff-so-fancy | less --tabs=4 -RF
 [safe]
-    directory = /workspace
-    directory = /workspace/*
+    directory = /home/node/workspace
+    directory = /home/node/workspace/*
 GITCFG
 RUN chown -R node:node /home/node/.config
 
 # Set HOME to /home/node so git finds config in /home/node/.config/git/
-# /workspace is volume-mounted, so files there are overwritten on container start
-ENV HOME=/home/node
+# /home/node/workspace is volume-mounted, so files there are overwritten on container start
+ENV HOME=/home/node/workspace
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV TZ=Asia/Krasnoyarsk
 
+RUN mkdir -p "${DSH_HOME}" /home/node/workspace \
+    && chown -R node:node "${DSH_HOME}" /home/node/workspace
+
 USER node
+WORKDIR /home/node/workspace
 COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker

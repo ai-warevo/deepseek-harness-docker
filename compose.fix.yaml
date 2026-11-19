@@ -14,9 +14,11 @@ services:
     environment:
       DOCKER_HOST: ${DOCKER_HOST:-unix:///var/run/docker.sock}
       HOME: /home/node
+      DSH_HOME: /home/node/.dsh
       XDG_CONFIG_HOME: /home/node/.config
       GITHUB_TOKEN: ${GITHUB_PAT_TOKEN}
-    volumes:
+    volumes: !override
+      - ${DSH_WORKSPACE:-dsh-workspace}:/home/node/workspace
       - ./dsh-home:/home/node/.dsh
       - /var/run/docker.sock:/var/run/docker.sock
     group_add:
