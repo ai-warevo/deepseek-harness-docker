@@ -129,8 +129,9 @@ RUN chown -R node:node /home/node/.config
 ENV HOME=/home/node/workspace
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV TZ=Asia/Krasnoyarsk
+ENV GH_CONFIG_DIR=/home/node/.dsh/gh
 
-RUN mkdir -p "${DSH_HOME}" /home/node/workspace \
+RUN mkdir -p "${DSH_HOME}/gh" /home/node/workspace \
     && chown -R node:node "${DSH_HOME}" /home/node/workspace
 
 USER node
