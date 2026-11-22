@@ -47,10 +47,10 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
     ln -sf /usr/bin/fdfind /usr/bin/fd && \
     ln -sf /usr/bin/batcat /usr/bin/bat && \
     rm -rf /var/lib/apt/lists/* && \
-    npm install -g diff-so-fancy && \
-    \
-    # GUI Development: X11, OpenGL, GLFW, Dear ImGui headers, Xvfb
-    apt-get update && \
+    npm install -g diff-so-fancy
+
+# GUI Development: X11, OpenGL dev headers, Xvfb (separate layer for caching)
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libx11-dev \
         libxrandr-dev \
@@ -58,30 +58,38 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
         libxcursor-dev \
         libxi-dev \
         libgl1-mesa-dev \
+        libgl1-mesa-dri \
+        libglx-mesa0 \
         libglu1-mesa-dev \
         mesa-common-dev \
+        mesa-utils \
         xvfb \
         x11-utils && \
-    rm -rf /var/lib/apt/lists/* && \
-    \
-    # Pre-populate /opt/deps with stable GUI dependencies for local-first caching
-    mkdir -p /opt/deps/src && \
+    rm -rf /var/lib/apt/lists/*
+
+
+# Pre-populate GLFW 3.4 (X11-only, no Wayland to avoid wayland-scanner dep)
+RUN mkdir -p /opt/deps/src && \
     cd /opt/deps/src && \
-    # GLFW 3.4
     git clone --branch 3.4 --depth 1 https://github.com/glfw/glfw.git && \
     cd glfw && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps \
-        -DGLFW_BUILD_DOCS=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_EXAMPLES=OFF && \
-    cmake --build . --parallel && cmake --install . && \
-    cd /opt/deps/src && rm -rf glfw && \
-    # Dear ImGui (docking branch) - headers only
-    git clone --branch v1.91.8-docking --depth 1 https://github.com/ocornut/imgui.git && \
-    mkdir -p /opt/deps/include/imgui && \
-    cp imgui/*.h imgui/*.cpp /opt/deps/include/imgui/ && \
-    cp imgui/backends/imgui_impl_glfw.* imgui/backends/imgui_impl_opengl3.* /opt/deps/include/imgui/ && \
-    rm -rf imgui && \
-    # Cleanup
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/deps \
+        -DGLFW_BUILD_DOCS=OFF \
+        -DGLFW_BUILD_TESTS=OFF \
+        -DGLFW_BUILD_EXAMPLES=OFF \
+        -DGLFW_BUILD_WAYLAND=OFF \
+        -DGLFW_BUILD_X11=ON && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
     cd / && rm -rf /opt/deps/src
+
+# Pre-populate Dear ImGui docking branch (headers only, fast)
+RUN git clone --branch v1.91.8-docking --depth 1 https://github.com/ocornut/imgui.git /tmp/imgui && \
+    mkdir -p /opt/deps/include/imgui && \
+    cp /tmp/imgui/*.h /tmp/imgui/*.cpp /opt/deps/include/imgui/ && \
+    cp /tmp/imgui/backends/imgui_impl_glfw.* /tmp/imgui/backends/imgui_impl_opengl3.* /opt/deps/include/imgui/ && \
+    rm -rf /tmp/imgui
 
 # fzf keybindings + fd + zoxide + bat integration
 # /home/node/workspace is mounted as volume, use /home/node for persistent config
@@ -167,6 +175,41 @@ ENV GH_CONFIG_DIR=/home/node/.dsh/gh
 
 RUN mkdir -p "${DSH_HOME}/gh" /home/node/workspace \
     && chown -R node:node "${DSH_HOME}" /home/node/workspace
+
+# 1. Добавляем рантайм-драйверы Mesa (llvmpipe) для работы OpenGL/GLFW в Xvfb
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libgl1-mesa-dri \
+        libglx-mesa0 \
+        mesa-utils && \
+    rm -rf /var/lib/apt/lists/*
+
+# 2. Фиксим запуск Xvfb из deepseek-harness-entrypoint / dsh-browser-desktop:
+# убираем заглушку "needs-to-be-defined" и неподдерживаемые флаги +extension
+RUN mv /usr/bin/Xvfb /usr/bin/Xvfb.real && \
+    cat > /usr/bin/Xvfb <<'EOF'
+#!/bin/sh
+args=""
+has_screen=0
+skip_next=0
+for arg in "$@"; do
+  if [ "$skip_next" = "1" ]; then
+    skip_next=0
+    continue
+  fi
+  case "$arg" in
+    needs-to-be-defined) ;;
+    +extension|-extension) skip_next=1 ;;
+    -screen) has_screen=1; args="$args $arg" ;;
+    *) args="$args $arg" ;;
+  esac
+done
+if [ "$has_screen" = "0" ]; then
+  args="$args -screen 0 1280x720x24"
+fi
+exec /usr/bin/Xvfb.real $args
+EOF
+RUN chmod +x /usr/bin/Xvfb
 
 USER node
 WORKDIR /home/node/workspace

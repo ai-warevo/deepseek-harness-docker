@@ -17,7 +17,7 @@ services:
       DSH_HOME: /home/node/.dsh
       XDG_CONFIG_HOME: /home/node/.config
       GITHUB_TOKEN: ${GITHUB_TOKEN}
-      DISPLAY: ${DISPLAY:-:99}
+      DISPLAY: ":99"
       LIBGL_ALWAYS_SOFTWARE: ${LIBGL_ALWAYS_SOFTWARE:-1}
       AW_DEPS_DIR: /opt/deps
     volumes: !override
