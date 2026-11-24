@@ -22,9 +22,13 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
         clang-tidy \
         cmake \
         gdb \
+        gperf \
         git \
+        libssl-dev \
         lld \
         ninja-build \
+        qrencode \
+        zlib1g-dev \
     && \
     apt-get install -y --no-install-recommends -t forky gcc-15 g++-15 gcovr && \
     rm -rf /var/lib/apt/lists/* && \
@@ -52,6 +56,7 @@ RUN echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.
 # GUI Development: X11, OpenGL dev headers, Xvfb (separate layer for caching)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        gperf \
         libx11-dev \
         libxrandr-dev \
         libxinerama-dev \
@@ -69,6 +74,7 @@ RUN apt-get update && \
 
 
 # Pre-populate GLFW 3.4 (X11-only, no Wayland to avoid wayland-scanner dep)
+# KEEP SOURCE for debugging/inspection
 RUN mkdir -p /opt/deps/src && \
     cd /opt/deps/src && \
     git clone --branch 3.4 --depth 1 https://github.com/glfw/glfw.git && \
@@ -81,15 +87,65 @@ RUN mkdir -p /opt/deps/src && \
         -DGLFW_BUILD_WAYLAND=OFF \
         -DGLFW_BUILD_X11=ON && \
     cmake --build . --parallel $(nproc) && \
-    cmake --install . && \
-    cd / && rm -rf /opt/deps/src
+    cmake --install .
 
 # Pre-populate Dear ImGui docking branch (headers only, fast)
-RUN git clone --branch v1.91.8-docking --depth 1 https://github.com/ocornut/imgui.git /tmp/imgui && \
+# KEEP SOURCE for debugging/inspection
+RUN git clone --branch v1.91.8-docking --depth 1 https://github.com/ocornut/imgui.git /opt/deps/src/imgui && \
     mkdir -p /opt/deps/include/imgui && \
-    cp /tmp/imgui/*.h /tmp/imgui/*.cpp /opt/deps/include/imgui/ && \
-    cp /tmp/imgui/backends/imgui_impl_glfw.* /tmp/imgui/backends/imgui_impl_opengl3.* /opt/deps/include/imgui/ && \
-    rm -rf /tmp/imgui
+    cp /opt/deps/src/imgui/*.h /opt/deps/src/imgui/*.cpp /opt/deps/include/imgui/ && \
+    cp /opt/deps/src/imgui/backends/imgui_impl_glfw.* /opt/deps/src/imgui/backends/imgui_impl_opengl3.* /opt/deps/include/imgui/
+
+# Pre-populate development libraries for agent inspection
+# Catch2 v3.6.0 (for unit testing, referenced from monorepo)
+RUN cd /opt/deps/src && \
+    git clone --branch v3.6.0 --depth 1 https://github.com/catchorg/Catch2.git && \
+    cd Catch2 && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DBUILD_TESTING=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install .
+
+# spdlog v1.14.1 (logging library)
+RUN cd /opt/deps/src && \
+    git clone --branch v1.14.1 --depth 1 https://github.com/gabime/spdlog.git && \
+    cd spdlog && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DSPDLOG_BUILD_TESTS=OFF -DSPDLOG_BUILD_EXAMPLE=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install .
+
+# nlohmann/json v3.11.3 (JSON parsing)
+RUN cd /opt/deps/src && \
+    git clone --branch v3.11.3 --depth 1 https://github.com/nlohmann/json.git && \
+    cd json && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DJSON_BuildTests=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install .
+
+# STB (header-only image library)
+RUN cd /opt/deps/src && \
+    git clone --depth 1 https://github.com/nothings/stb.git && \
+    mkdir -p /opt/deps/include/stb && \
+    cp stb/*.h /opt/deps/include/stb/
+
+# fmt v11.0.2 (string formatting)
+RUN cd /opt/deps/src && \
+    git clone --branch 11.0.2 --depth 1 https://github.com/fmtlib/fmt.git && \
+    cd fmt && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DFMT_TEST=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install .
+
+# TDLib (Telegram Database Library)
+RUN cd /opt/deps/src && \
+    git clone --depth 1 https://github.com/tdlib/td.git && \
+    cd td && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps \
+        -DTDLIB_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DTD_CLI=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install .
+
+# Environment variable for dependency resolution
+ENV AW_DEPS_DIR=/opt/deps
 
 # fzf keybindings + fd + zoxide + bat integration
 # /home/node/workspace is mounted as volume, use /home/node for persistent config
