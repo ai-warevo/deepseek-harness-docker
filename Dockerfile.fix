@@ -73,22 +73,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 
-# Pre-populate GLFW 3.4 (X11-only, no Wayland to avoid wayland-scanner dep)
-# KEEP SOURCE for debugging/inspection
-RUN mkdir -p /opt/deps/src && \
-    cd /opt/deps/src && \
-    git clone --branch 3.4 --depth 1 https://github.com/glfw/glfw.git && \
-    cd glfw && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/deps \
-        -DGLFW_BUILD_DOCS=OFF \
-        -DGLFW_BUILD_TESTS=OFF \
-        -DGLFW_BUILD_EXAMPLES=OFF \
-        -DGLFW_BUILD_WAYLAND=OFF \
-        -DGLFW_BUILD_X11=ON && \
-    cmake --build . --parallel $(nproc) && \
-    cmake --install .
-
 # Pre-populate Dear ImGui docking branch (headers only, fast)
 # KEEP SOURCE for debugging/inspection
 RUN git clone --branch v1.91.8-docking --depth 1 https://github.com/ocornut/imgui.git /opt/deps/src/imgui && \
@@ -97,52 +81,116 @@ RUN git clone --branch v1.91.8-docking --depth 1 https://github.com/ocornut/imgu
     cp /opt/deps/src/imgui/backends/imgui_impl_glfw.* /opt/deps/src/imgui/backends/imgui_impl_opengl3.* /opt/deps/include/imgui/
 
 # Pre-populate development libraries for agent inspection
-# Catch2 v3.6.0 (for unit testing, referenced from monorepo)
+# Split by ABI: libstdc++ and libc++ versions
+
+# ==== libstdc++ (gcc-15, clang-18 default) ====
+# Catch2 v3.6.0 (libstdc++)
 RUN cd /opt/deps/src && \
     git clone --branch v3.6.0 --depth 1 https://github.com/catchorg/Catch2.git && \
     cd Catch2 && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DBUILD_TESTING=OFF && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/libstdc++ -DBUILD_TESTING=OFF && \
     cmake --build . --parallel $(nproc) && \
-    cmake --install .
+    cmake --install . && \
+    echo 'set(Catch2_SOURCE_DIR "/opt/deps/libstdc++/src/Catch2")' >> /opt/deps/libstdc++/lib/cmake/Catch2/Catch2Config.cmake
 
-# spdlog v1.14.1 (logging library)
+# spdlog v1.14.1 (libstdc++)
 RUN cd /opt/deps/src && \
     git clone --branch v1.14.1 --depth 1 https://github.com/gabime/spdlog.git && \
     cd spdlog && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DSPDLOG_BUILD_TESTS=OFF -DSPDLOG_BUILD_EXAMPLE=OFF && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/libstdc++ -DSPDLOG_BUILD_TESTS=OFF -DSPDLOG_BUILD_EXAMPLE=OFF && \
     cmake --build . --parallel $(nproc) && \
-    cmake --install .
+    cmake --install . && \
+    rm -rf /opt/deps/src/spdlog
 
-# nlohmann/json v3.11.3 (JSON parsing)
+# fmt v11.0.2 (libstdc++)
+RUN cd /opt/deps/src && \
+    git clone --branch 11.0.2 --depth 1 https://github.com/fmtlib/fmt.git && \
+    cd fmt && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/libstdc++ -DFMT_TEST=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    rm -rf /opt/deps/src/fmt
+
+# GLFW 3.4 (libstdc++)
+RUN cd /opt/deps/src && \
+    git clone --branch 3.4 --depth 1 https://github.com/glfw/glfw.git glfw-libstdc++ && \
+    cd glfw-libstdc++ && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/deps/libstdc++ \
+        -DGLFW_BUILD_DOCS=OFF \
+        -DGLFW_BUILD_TESTS=OFF \
+        -DGLFW_BUILD_EXAMPLES=OFF \
+        -DGLFW_BUILD_WAYLAND=OFF \
+        -DGLFW_BUILD_X11=ON && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    rm -rf /opt/deps/src/glfw-libstdc++
+
+# ==== libc++ (clang-18 -stdlib=libc++) ====
+# Catch2 v3.6.0 (libc++)
+RUN cd /opt/deps/src && \
+    git clone --branch v3.6.0 --depth 1 https://github.com/catchorg/Catch2.git catch2-libc++ && \
+    cd catch2-libc++ && mkdir build && cd build && \
+    CC=/usr/bin/clang-18 CXX=/usr/bin/clang++-18 CXXFLAGS="-stdlib=libc++" \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/libc++ -DBUILD_TESTING=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    echo 'set(Catch2_SOURCE_DIR "/opt/deps/libc++/src/Catch2")' >> /opt/deps/libc++/lib/cmake/Catch2/Catch2Config.cmake && \
+    rm -rf /opt/deps/src/catch2-libc++
+
+# spdlog v1.14.1 (libc++)
+RUN cd /opt/deps/src && \
+    git clone --branch v1.14.1 --depth 1 https://github.com/gabime/spdlog.git spdlog-libc++ && \
+    cd spdlog-libc++ && mkdir build && cd build && \
+    CC=/usr/bin/clang-18 CXX=/usr/bin/clang++-18 CXXFLAGS="-stdlib=libc++" \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/libc++ -DSPDLOG_BUILD_TESTS=OFF -DSPDLOG_BUILD_EXAMPLE=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    rm -rf /opt/deps/src/spdlog-libc++
+
+# fmt v11.0.2 (libc++)
+RUN cd /opt/deps/src && \
+    git clone --branch 11.0.2 --depth 1 https://github.com/fmtlib/fmt.git fmt-libc++ && \
+    cd fmt-libc++ && mkdir build && cd build && \
+    CC=/usr/bin/clang-18 CXX=/usr/bin/clang++-18 CXXFLAGS="-stdlib=libc++" \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/libc++ -DFMT_TEST=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    rm -rf /opt/deps/src/fmt-libc++
+
+# GLFW 3.4 (libc++)
+RUN cd /opt/deps/src && \
+    git clone --branch 3.4 --depth 1 https://github.com/glfw/glfw.git glfw-libc++ && \
+    cd glfw-libc++ && mkdir build && cd build && \
+    CC=/usr/bin/clang-18 CXX=/usr/bin/clang++-18 CXXFLAGS="-stdlib=libc++" \
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/deps/libc++ \
+        -DGLFW_BUILD_DOCS=OFF \
+        -DGLFW_BUILD_TESTS=OFF \
+        -DGLFW_BUILD_EXAMPLES=OFF \
+        -DGLFW_BUILD_WAYLAND=OFF \
+        -DGLFW_BUILD_X11=ON && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    rm -rf /opt/deps/src/glfw-libc++
+
+# ==== Header-only (shared for all ABIs) ====
+# nlohmann/json v3.11.3
 RUN cd /opt/deps/src && \
     git clone --branch v3.11.3 --depth 1 https://github.com/nlohmann/json.git && \
     cd json && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DJSON_BuildTests=OFF && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/include -DJSON_BuildTests=OFF && \
     cmake --build . --parallel $(nproc) && \
-    cmake --install .
+    cmake --install . && \
+    rm -rf /opt/deps/src/json
 
 # STB (header-only image library)
 RUN cd /opt/deps/src && \
     git clone --depth 1 https://github.com/nothings/stb.git && \
     mkdir -p /opt/deps/include/stb && \
-    cp stb/*.h /opt/deps/include/stb/
+    cp stb/*.h /opt/deps/include/stb/ && \
+    rm -rf stb
 
-# fmt v11.0.2 (string formatting)
-RUN cd /opt/deps/src && \
-    git clone --branch 11.0.2 --depth 1 https://github.com/fmtlib/fmt.git && \
-    cd fmt && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps -DFMT_TEST=OFF && \
-    cmake --build . --parallel $(nproc) && \
-    cmake --install .
-
-# TDLib (Telegram Database Library)
-RUN cd /opt/deps/src && \
-    git clone --depth 1 https://github.com/tdlib/td.git && \
-    cd td && mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps \
-        -DTDLIB_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DTD_CLI=OFF && \
-    cmake --build . --parallel $(nproc) && \
-    cmake --install .
 
 # Environment variable for dependency resolution
 ENV AW_DEPS_DIR=/opt/deps
@@ -266,6 +314,16 @@ fi
 exec /usr/bin/Xvfb.real $args
 EOF
 RUN chmod +x /usr/bin/Xvfb
+
+# TDLib (libstdc++) — build for gcc-15/clang-18 default as well
+RUN cd /opt/deps/src && \
+    git clone --depth 1 https://github.com/tdlib/td.git td-libstdc++ && \
+    cd td-libstdc++ && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/deps/libstdc++ \
+        -DTDLIB_SHARED=OFF -DBUILD_SHARED_LIBS=OFF -DTD_CLI=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    rm -rf /opt/deps/src/td-libstdc++
 
 USER node
 WORKDIR /home/node/workspace
